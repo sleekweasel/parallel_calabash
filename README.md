@@ -120,6 +120,11 @@ As follows:
 7. Re-run it, skip the countdown, and it should open a screen sharing session for each test user.
 8. Add it into Settings > User & Groups > Login Items, set BOOT_DELAY if you need to tune the post-login startup time.
 
+You may find this useful for automating the accessibility setting:
+
+    echo password | sudo -S sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
+           "INSERT or REPLACE INTO access VALUES('kTCCServiceAccessibility','com.apple.ScriptEditor.id.autostart-test-users',0,1,0,NULL)"
+
 ## FILTERING
 Filters are partial matches on the device id, or model name.
 > adb devices -l
