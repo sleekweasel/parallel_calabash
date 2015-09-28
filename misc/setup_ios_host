@@ -1,0 +1,91 @@
+#!/bin/bash
+# Attempt to set up remote agent for parallel_calabash:
+#  1. Copies autologin_test_users.app to /Applications
+#  2. Copies the config file to ~/.parallel_calabash.iphonesimulator and links to .autotest
+#  3. Creates an ssh key if it doesn't already exist
+#  4. Turns off localhost checking
+#  5. Creates or updates test users with .ssh/authorized_keys, iPhone simulator types, and ~/.rvm.
+#  6. Also stops iTunes first-time-login nonsense
+#
+# Test users and passwords are taken from the nominated parallel_calabash file.
+# 
+# Usage:  setup_ios_host user host config
+
+usage() {
+    echo Usage: ${0#*/} user host config
+    echo "   user: remote CI user, assumed to have .ssh established for passwordless login."
+    echo "   host: remote hostname"
+    echo "   config: parallel_calabash config to install, notably USERS and PASSWORD"
+}
+
+USER=$1
+HOST=$2
+CONFIG=$3
+
+[ -n "$CONFIG" -a -f "$CONFIG" ] || { usage; echo No config file "'$CONFIG'"! ; exit 1 ; }
+
+ping -q -o "$HOST" || { usage; echo Unable to ping host "'$HOST'" ; exit 1 ; }
+
+USERHOST="${USER}@${HOST}"
+
+UIDS=$(ssh ${USERHOST} "dscl . -list /Users UniqueID")
+[ -s "$UIDS" ] || { usage; echo Unable to retrieve UIDs from $USERHOST; exit 1 ; }
+
+PASSWORD=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:PASSWORD]" )
+USERS=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:USERS]" )
+
+scp -r ${0%/*}/autostart_test_users.app ${USERHOST}:/Applications/
+scp $CONFIG ${USERHOST}:.parallel_calabash.iphonesimulator
+ssh ${USERHOST} "ln -s .parallel_calabash.iphonesimulator .parallel_calabash.autostart"
+ssh ${USERHOST} "echo n | ssh-keygen -q -f .ssh/id_rsa -N ''"
+ssh ${USERHOST} "(echo 'Host *' ; echo '    StrictHostKeyChecking no'; echo 'UserKnownHostsFile /dev/null') >> .ssh/config"
+
+uid=500
+
+echo About to mkusers
+
+os_version=$(ssh ${USERHOST} "sw_vers -productVersion")
+buddy_version=$(ssh ${USERHOST} "sw_vers -buildVersion")
+
+for nuser in $USERS ; do
+echo ==========================
+echo User $nuser
+echo ==========================
+
+    if echo $UIDS | grep $nuser; then
+        echo USER $nuser already exists: updating only.
+    else
+        uid=$[ uid + 1 ]
+        while echo $UIDS end | grep " $uid " ; do uid=$[ uid + 1 ] ; done
+        echo USER $nuser is new: creating.
+        cat <<END | ssh ${USERHOST} sudo -S -s
+$PASSWORD
+rm -rf /Users/$nuser
+dscl . create /Users/$nuser
+dscl . create /Users/$nuser UserShell /bin/bash
+dscl . create /Users/$nuser RealName $nuser
+dscl . create /Users/$nuser UniqueID $uid
+dscl . create /Users/$nuser PrimaryGroupID 1000
+dscl . create /Users/$nuser NFSHomeDirectory /Users/$nuser
+dscl . passwd /Users/$nuser $PASSWORD
+dscl . append /Groups/admin GroupMembership $nuser
+dscl . append /Groups/staff GroupMembership $nuser
+END
+    fi
+cat <<END | ssh ${USERHOST} sudo -S -s
+$PASSWORD
+mkdir -p /Users/$nuser/.ssh
+cp /Users/$USER/.ssh/id_rsa.pub /Users/$nuser/.ssh/authorized_keys
+ln -s /Users/$USER/.rvm /Users/$nuser/
+defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant DidSeeCloudSetup -bool TRUE
+defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant GestureMovieSeen none
+defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant LastSeenCloudProductVersion ${os_version}
+defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant LastSeenBuddyBuildVersion ${buddy_version}
+mkdir -p /Users/$nuser/Library/Preferences
+cp /Users/$USER/Library/Preferences/com.apple.iphonesimulator.plist /Users/$nuser/Library/Preferences/com.apple.iphonesimulator.plist 
+chown -R "${nuser}" "/Users/$nuser"
+
+END
+    echo y | ssh ${USERHOST} ssh $nuser@localhost echo SUCCESS FOR $nuser
+done
+
