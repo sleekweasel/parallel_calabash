@@ -14,9 +14,12 @@
 # If there are no devices or users, it will default to a simulator based on the
 # command-line options running as the primary user.
 
+# INIT: we use rvm, and Java AWT should run on the desktop, despite being
+# started from ssh.
+
 {
   USERS: [ 'qa1', 'qa2', 'qa3' ],
-  INIT: 'source "$HOME/.rvm/scripts/rvm"',
+  INIT: 'source "$HOME/.rvm/scripts/rvm"; export AWT_TOOLKIT=CToolkit',
   PASSWORD: 'qwerty',
   BOOT_DELAY: 0,
   # You only need to specify the port if the default clashes for you. Simulators start sequentially from this.
