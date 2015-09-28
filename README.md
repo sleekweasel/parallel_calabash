@@ -65,65 +65,7 @@ Example: parallel_calabash -app my.app --ios_config ~/.parallel_calabash.iphoneo
 ### iOS set-up
 
 * iOS testing is only supported on MacOS hosts.
-* Create as many (Administrator-privileged!) test accounts as you have devices or want simulators (Settings > Users & Groups)
-* As the main user, the one that runs parallel_calabash, create ~/.parallel_calabash.iphonesimulator and/or ~/.parallel_calabash.iphoneos
-
-As follows:
-
-    {
-      USERS: [ 'tester1', 'tester2', 'tester3' ],
-      INIT: '[[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"',
-      # You only need to specify the port if the default clashes for you. Simulators start sequentially from this.
-      # CALABASH_SERVER_PORT: 3800,
-      # You only need to give the test users' password if you want to run autostart_test_users
-      # PASSWORD: 'testuserspassword',
-      # You only need to set this if you want to run autostart_test_users and the default 6900 clashes with something.
-      # VNC_FORWARD: 6900,
-      # Omit 'DEVICES' entirely if you're only testing on simulators.
-      DEVICES: [
-        {
-          NAME: 'ios-iphone5c-tinkywinkie (8.4.1)',
-          DEVICE_TARGET: '23984729837401987239874987239',
-          DEVICE_ENDPOINT: 'http://192.168.126.206:37265'
-        },
-        {
-          NAME: 'ios-iphone6plus-lala (8.4)',
-          DEVICE_TARGET: 'c987234987983458729375923485792345',
-          DEVICE_ENDPOINT: 'http://192.168.126.205:37265',
-        },
-        {
-          NAME: 'ios-iphone6plus-dipsy (8.4.1)',
-          DEVICE_TARGET: '98723498792873459872398475982347589',
-          DEVICE_ENDPOINT: 'http://192.168.126.207:37265',
-        }
-      ]
-    }
-
-* As the main account, run ssh-keygen
-* As each test account:
-1. Use Screen Sharing to log in to the user's desktop (particularly if you're using simulators) to let the computer set it up.
-2. Settings > Sharing > Remote Login > Allow access for main account (if not already permitted by Remote Management)
-3. Copy ~main_account/.ssh/id_rsa.pub into each test account's ~tester1/.ssh/authorized_keys
-4. Any other set-up, e.g. ln -s /Users/main_account/.rvm ~/.rvm
-
-* If you don't want to test on simulators, your set-up stops here.
-* If you want to test on simulators too...
-* ... for each test user, Settings > Sharing > Screen sharing > Allow access (if not already permitted by Remote Management)
-* ... (we were suprised that a mac mini can cheerfully run upwards of 7 simulators without much struggle)
-* ... and as your primary user:
-1. Run: sudo defaults write com.apple.ScreenSharing skipLocalAddressCheck -boolean YES
-2. Run: ln -s ~/.parallel_config.iphonesimulator ~/.parallel_config.autostart  (or whatever your simulators' config is called).
-3. Add a PASSWORD: 'whatever', in your config - same password for all test users.
-4. Copy misc/autostart_test_users.app from the Git repository into the system /Applications/ directory
-5. Run /Applications/autostart_test_users, skip the countdown, and see it complain about accessibility; close the connection request dialog
-6. In Settings > Privacy & Security > Privacy > Accessibility, allow it - close Settings
-7. Re-run it, skip the countdown, and it should open a screen sharing session for each test user.
-8. Add it into Settings > User & Groups > Login Items, set BOOT_DELAY if you need to tune the post-login startup time.
-
-You may find this useful for automating the accessibility setting:
-
-    echo password | sudo -S sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
-           "INSERT or REPLACE INTO access VALUES('kTCCServiceAccessibility','com.apple.ScriptEditor.id.autostart-test-users',0,1,0,NULL)"
+* Much of this set-up has been automated, see misc/README.md
 
 ## FILTERING
 Filters are partial matches on the device id, or model name.
