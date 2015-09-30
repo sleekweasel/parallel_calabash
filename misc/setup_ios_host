@@ -29,7 +29,7 @@ ping -q -o "$HOST" || { usage; echo Unable to ping host "'$HOST'" ; exit 1 ; }
 USERHOST="${USER}@${HOST}"
 
 UIDS=$(ssh ${USERHOST} "dscl . -list /Users UniqueID")
-[ -s "$UIDS" ] || { usage; echo Unable to retrieve UIDs from $USERHOST; exit 1 ; }
+[ -n "$UIDS" ] || { usage; echo "Unable to retrieve UIDs from $USERHOST ($UIDS)"; exit 1 ; }
 
 PASSWORD=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:PASSWORD]" )
 USERS=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:USERS]" )
