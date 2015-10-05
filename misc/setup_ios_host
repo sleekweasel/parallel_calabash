@@ -38,10 +38,10 @@ USERS=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:USERS]" )
 scp -r ${0%/*}/autostart_test_users.app ${USERHOST}:/Applications/
 scp $CONFIG ${USERHOST}:.parallel_calabash.iphonesimulator
 ssh ${USERHOST} "ln -s .parallel_calabash.iphonesimulator .parallel_calabash.autostart"
-echo "${PASSWORD}" | ssh $(USERHOST) "sudo sqlite3 '/Library/Application Support/com.apple.TCC/TCC.db' 'INSERT or REPLACE INTO access VALUES(\"kTCCServiceAccessibility\",\"com.apple.ScriptEditor.id.autostart-test-users\",0,1,0,NULL)'"
+echo "${PASSWORD}" | ssh ${USERHOST} "sudo sqlite3 '/Library/Application Support/com.apple.TCC/TCC.db' 'INSERT or REPLACE INTO access VALUES(\"kTCCServiceAccessibility\",\"com.apple.ScriptEditor.id.autostart-test-users\",0,1,0,NULL)'"
 
 # Supposedly skip checking vs localhost with vnc addresses. Not sure if this is needed.
-echo "${PASSWORD}" | ssh $(USERHOST) "sudo defaults write com.apple.ScreenSharing skipLocalAddressCheck -boolean YES"
+echo "${PASSWORD}" | ssh ${USERHOST} "sudo defaults write com.apple.ScreenSharing skipLocalAddressCheck -boolean YES"
 
 # Ensure there's an ssh key and don't fret about localhost authentication.
 ssh ${USERHOST} "echo n | ssh-keygen -q -f .ssh/id_rsa -N ''"
