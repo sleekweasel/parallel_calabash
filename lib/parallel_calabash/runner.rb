@@ -180,9 +180,9 @@ module ParallelCalabash
           puts "Chowned/copied.... #{path}"
         end
       end
-      FileUtils.chmod_R('g+w', 'build/reports') if File.exist?('build/reports')
-      FileUtils.chmod('g+w', Dir['*'])
-      FileUtils.chmod('g+w', '.')
+      FileUtils.chmod_R('g=u', 'build/reports') if File.exist?('build/reports')
+      FileUtils.chmod('g=u', Dir['*'])
+      FileUtils.chmod('g=u', '.')
 
       # Kill all simulators
       kill_all = @device_helper.xcode7? ? 'killall Simulator' :  "killall 'iOS Simulator'"
@@ -219,6 +219,7 @@ module ParallelCalabash
       end
     end
 
+    # Ideally should be copied by the user, but gid access should suffice.
     def copy_app_set_port(app_path, device)
       user_path = File.dirname(app_path) + '/' + device[:USER]
       FileUtils.rmtree(user_path)
@@ -232,6 +233,8 @@ module ParallelCalabash
       unless system("/usr/libexec/PlistBuddy -c 'Add CalabashServerPort integer #{device[:CALABASH_SERVER_PORT]}' #{user_app}/Info.plist")
         raise "Unable to set CalabashServerPort in #{user_app}/Info.plist"
       end
+
+      FileUtils.chmod_R('g=u', user_app)
 
       puts "User app: #{user_app}"
 
