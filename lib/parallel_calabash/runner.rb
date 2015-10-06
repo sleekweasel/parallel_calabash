@@ -180,7 +180,7 @@ module ParallelCalabash
           puts "Chowned/copied.... #{path}"
         end
       end
-      FileUtils.chmod_R('g=u', 'build/reports') if File.exist?('build/reports')
+      FileUtils.chmod_R('g=u', 'build/reports') if File.exist? 'build/reports'
       FileUtils.chmod('g=u', Dir['*'])
       FileUtils.chmod('g=u', '.')
 
