@@ -84,6 +84,7 @@ module ParallelCalabash
       end
 
       def feature_files_in_folder(feature_dir)
+        return [feature_dir] if feature_dir.index(':')
         if File.directory?(feature_dir.first)
           files = Dir[File.join(feature_dir, "**{,/*/**}/*")].uniq
           files.grep(/\.feature$/)

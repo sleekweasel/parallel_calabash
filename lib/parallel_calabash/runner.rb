@@ -144,8 +144,8 @@ module ParallelCalabash
           DEVICE_INFO: device_info,
           TEST_USER: device[:USER] || %x( whoami ).strip,
           # 'DEBUG_UNIX_CALLS' => '1',
-          TEST_PROCESS_NUMBER: (process_number+1).to_s,
-          SCREENSHOT_PATH: "PCal_#{process_number+1}_"
+          TEST_PROCESS_NUMBER: device[:USER] ? (process_number+1).to_s : '00',
+          SCREENSHOT_PATH: device[:USER] ? "PCal_#{process_number+1}_" : 'PCal_00'
       }
       env['BUNDLE_ID'] = ENV['BUNDLE_ID'] if ENV['BUNDLE_ID']
       exports = env.map { |k, v| WINDOWS ? "(SET \"#{k}=#{v}\")" : "#{k}='#{v}';export #{k}" }.join(separator)
