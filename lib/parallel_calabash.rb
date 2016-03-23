@@ -20,8 +20,8 @@ module ParallelCalabash
                   ParallelCalabash::IosHelper.new(
                       options[:filter],
                       {
-                          DEVICE_TARGET: options[:device_target],
-                          DEVICE_ENDPOINT: options[:device_endpoint],
+                          DEVICE_TARGET: options[:device_target],  # default helper value
+                          DEVICE_ENDPOINT: options[:device_endpoint], # default helper value
                       },
                       options[:ios_config]
                   )
