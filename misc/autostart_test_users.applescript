@@ -30,8 +30,10 @@ on startVnc(vncUrl)
 		tell application process "Screen Sharing"
 			set originalWindowCount to my countActiveSharedScreens()
 			set tryCount to 300 # 30 seconds
+			set tryCount to 70 # 30 seconds
 			#			display dialog "in await sharing"
-			repeat until exists window "Screen Sharing"
+			# ElCapitan = "" Yosemite = "Screen Sharing"
+			repeat until (exists window "Screen Sharing") or (exists window "")
 				delay 0.1
 				set tryCount to tryCount - 1
 				if tryCount = 0 then
@@ -40,13 +42,15 @@ on startVnc(vncUrl)
 				end if
 			end repeat
 			#			display dialog "out await sharing"
-			tell window "Screen Sharing"
+			set sharewindow to "ScreenSharing"
+			if exists window "" then set sharewindow to ""
+			tell window sharewindow
 				click radio button 2 of radio group 1
-				click button 2
+				click button "Connect"
 			end tell
 			set tryCount to 300 # 30 seconds' wait for shared screen to appear.
 			#			display dialog "in await screen"
-			repeat while (exists window "Screen Sharing") or (my countActiveSharedScreens() = originalWindowCount)
+			repeat while (exists window sharewindow) or (my countActiveSharedScreens() = originalWindowCount)
 				delay 0.1
 				set tryCount to tryCount - 1
 				if tryCount = 0 then
@@ -112,7 +116,7 @@ on run argv
 		end if
 		
 		set DBug to "vnc"
-		repeat with index from 1 to number of items in userList
+		repeat with index from 1 to number of items in users
 			set iuser to item index of users
 			set ihost to item index of hosts
 			set DBug to "vnc-" & iuser & " @ " & ihost
