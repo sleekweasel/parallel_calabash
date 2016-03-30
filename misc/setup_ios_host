@@ -7,6 +7,10 @@
 #  5. Creates or updates test users with .ssh/authorized_keys, iPhone simulator types, and ~/.rvm.
 #  6. Also stops iTunes first-time-login nonsense
 #
+# And...
+#  7. Makes a user-local copy of /etc/ssh/, with sshd_config tweaked for the user, with sshd ports from 2200 up
+#  8. Installs a LaunchAgent plist to start the user's sshd from the desktop context.
+# 
 # Test users and passwords are taken from the nominated parallel_calabash file.
 # 
 # Usage:  setup_ios_host user host config
@@ -32,13 +36,16 @@ UIDS=$(ssh ${USERHOST} "dscl . -list /Users UniqueID")
 [ -n "$UIDS" ] || { usage; echo "Unable to retrieve UIDs from $USERHOST ($UIDS)"; exit 1 ; }
 
 PASSWORD=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:PASSWORD]" )
-USERS=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:USERS]" )
+USERS=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:USERS].map{|e|e.split('@')[0]}" )
 
 # Copy application, config file, and authorise application to use UI Automation.
 scp -r ${0%/*}/autostart_test_users.app ${USERHOST}:/Applications/
 scp $CONFIG ${USERHOST}:.parallel_calabash.iphonesimulator
 ssh ${USERHOST} "ln -s .parallel_calabash.iphonesimulator .parallel_calabash.autostart"
 echo "${PASSWORD}" | ssh ${USERHOST} "sudo sqlite3 '/Library/Application Support/com.apple.TCC/TCC.db' 'INSERT or REPLACE INTO access VALUES(\"kTCCServiceAccessibility\",\"com.apple.ScriptEditor.id.autostart-test-users\",0,1,0,NULL)'"
+
+# Copy sshd plist and tweakrun script.
+rsync ${0%/*}/autostart_test_users.sshd* ${USERHOST}:Autostart/
 
 # Supposedly skip checking vs localhost with vnc addresses. Not sure if this is needed.
 echo "${PASSWORD}" | ssh ${USERHOST} "sudo defaults write com.apple.ScreenSharing skipLocalAddressCheck -boolean YES"
@@ -82,14 +89,21 @@ END
     cat <<END | ssh ${USERHOST} sudo -S -s
 $PASSWORD
 mkdir -p /Users/$nuser/.ssh
-cp /Users/$USER/.ssh/id_rsa.pub /Users/$nuser/.ssh/authorized_keys
+touch /Users/$nuser/.ssh/authorized_keys
+chmod 644 /Users/$nuser/.ssh/authorized_keys
+cat /Users/$USER/.ssh/id_rsa.pub >> /Users/$nuser/.ssh/authorized_keys
 ln -s /Users/$USER/.rvm /Users/$nuser/
+mkdir -p /Users/$nuser/Library/Preferences
 defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant DidSeeCloudSetup -bool TRUE
 defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant GestureMovieSeen none
 defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant LastSeenCloudProductVersion ${os_version}
 defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant LastSeenBuddyBuildVersion ${buddy_version}
-mkdir -p /Users/$nuser/Library/Preferences
 cp /Users/$USER/Library/Preferences/com.apple.iphonesimulator.plist /Users/$nuser/Library/Preferences/com.apple.iphonesimulator.plist 
+mkdir -p /Users/$nuser/Library/LaunchAgents
+sed -E 's/TEST_USER/$nuser/; s/MAIN_USER/$USER/' </Users/$USER/Autostart/autostart_test_users.sshd.plist >/Users/$nuser/Library/LaunchAgents/autostart_test_users.sshd.plist
+rm -rf /Users/$nuser/ssh
+cp -r /etc/ssh /Users/$nuser/ssh
+sed -E -i~ 's/\/etc\//\/Users\/$nuser\//; s/#(ListenAddress|HostKey)/\1/' /Users/$nuser/ssh/sshd_config
 chown -R "${nuser}" "/Users/$nuser"
 END
     echo y | ssh ${USERHOST} ssh $nuser@localhost echo SUCCESS FOR $nuser

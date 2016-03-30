@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>autostart_test_users.sshd</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-l</string>
+		<string>/Users/MAIN_USER/Autostart/autostart_test_users.sshd.sh</string>
+	</array>
+	<key>StandardOutPath</key>
+	<string>/Users/TEST_USER/autostart_test_users.sshd.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/TEST_USER/autostart_test_users.sshd.err.log</string>
+	<key>Debug</key>
+	<true/>
+	<key>UserName</key>
+	<string>TEST_USER</string>
+	<key>RunAtLoad</key>
+	<true/>
+</dict>
+</plist>
+
