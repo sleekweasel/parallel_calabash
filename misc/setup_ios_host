@@ -57,9 +57,11 @@ uid=500
 
 echo About to mkusers
 
+count=0
 for nuser in $USERS ; do
+count=$[ count + 1 ]
 echo ==========================
-echo User $nuser
+echo "User $nuser (/$count)"
 echo ==========================
   case "$nuser" in
     *@*)
@@ -125,7 +127,7 @@ mkdir -p /Users/$nuser/Library/LaunchAgents
 sed -E 's/TEST_USER/$nuser/; s/MAIN_USER/$iuser/' </Users/$iuser/Autostart/autostart_test_users.sshd.plist >/Users/$nuser/Library/LaunchAgents/autostart_test_users.sshd.plist
 rm -rf /Users/$nuser/ssh
 cp -r /etc/ssh /Users/$nuser/ssh
-sed -E -i~ 's/\/etc\//\/Users\/$nuser\//; s/#(ListenAddress|HostKey)/\1/' /Users/$nuser/ssh/sshd_config
+sed -E -i~ 's/\/etc\//\/Users\/$nuser\//; s/#(ListenAddress|HostKey)/\1/; s/#Port 22/Port '$[ count + 2200 ]'/;' /Users/$nuser/ssh/sshd_config
 chown -R "${nuser}" "/Users/$nuser"
 END
     echo y | ssh ${iuserhost} ssh $nuser@localhost echo SUCCESS FOR $nuser
