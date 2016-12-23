@@ -34,7 +34,7 @@ ping -q -o "$HOST" || { usage; echo Unable to ping host "'$HOST'" ; exit 1 ; }
 USERHOST="${USER}@${HOST}"
 
 PASSWORD=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:PASSWORD]" )
-USERS=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:USERS]" )
+USERS=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:USERS]" | sort -u )
 
 # Copy application, config file, and authorise application to use UI Automation.
 rsync -r --delete ${0%/*}/autostart_test_users.app ${USERHOST}:/Applications/
@@ -70,21 +70,32 @@ echo ==========================
         iuser=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:INSTALL_USERS]['$ihost'] || config[:INSTALL_USERS]['']" )
         [ -z "$iuser" ] && echo NO INSTALL_USERS FOR $ihost && exit 1
         iuserhost=$iuser@$ihost
+  echo "iuser@ihost = $iuserhost"
+  echo ==========================
         ;;
     *)
         iuser=$USER
         ihost=$HOST
         iuserhost="${USER}@${HOST}"
+  echo "USER@HOST = $iuserhost"
+  echo ==========================
         ;;
   esac
 
     os_version=$(ssh ${iuserhost} "sw_vers -productVersion")
     buddy_version=$(ssh ${iuserhost} "sw_vers -buildVersion")
     UIDS=$(ssh ${iuserhost} "dscl . -list /Users UniqueID")
-    [ -n "$UIDS" ] || { usage; echo "Unable to retrieve UIDs from $iuserhost ($UIDS)"; exit 1 ; }
+    [ -n "$UIDS" ] || { usage; echo "Unable to retrieve UIDs from: ssh $iuserhost \"dscl . -list /Users UniqueID\" ($UIDS)"; exit 1 ; }
+
+    GID=$(ssh ${iuserhost} "dscl . -list /Users PrimaryGroupID | awk '/^$iuser .{ print \$2 }")
+    [ -n "$GID" ] || { usage; echo "Unable to retrieve GID from: ssh $iuserhost \"dscl . -list /Users PrimaryGroupID\" ($GID)"; exit 1 ; }
 
     if echo start $UIDS end | grep " $nuser "; then
         echo USER $nuser already exists: updating only.
+        cat <<END | ssh ${iuserhost} sudo -S -s
+$PASSWORD
+dscl . create /Users/$nuser PrimaryGroupID $GID
+END
     else
         uid=$[ uid + 1 ]
         while echo start $UIDS end | grep " $uid " ; do uid=$[ uid + 1 ] ; done
@@ -96,7 +107,7 @@ dscl . create /Users/$nuser
 dscl . create /Users/$nuser UserShell /bin/bash
 dscl . create /Users/$nuser RealName $nuser
 dscl . create /Users/$nuser UniqueID $uid
-dscl . create /Users/$nuser PrimaryGroupID 1000
+dscl . create /Users/$nuser PrimaryGroupID $GID
 dscl . create /Users/$nuser NFSHomeDirectory /Users/$nuser
 dscl . passwd /Users/$nuser $PASSWORD
 dscl . append /Groups/admin GroupMembership $nuser
@@ -105,9 +116,11 @@ END
     fi
 
     # A bit excessive to rsync this for every user, but... eh.
+    echo rsync...
     rsync ${0%/*}/autostart_test_users.sshd.* ${iuserhost}:Autostart/
     rsync ${0%/*}/autostart_test_users.stop ${iuserhost}:Autostart/
 
+    echo script...    
     cat <<END | ssh ${iuserhost} sudo -S -s
 $PASSWORD
 echo Update started
@@ -115,7 +128,8 @@ mkdir -p /Users/$nuser/.ssh
 touch /Users/$nuser/.ssh/authorized_keys
 chmod 644 /Users/$nuser/.ssh/authorized_keys
 cat /Users/$iuser/.ssh/id_rsa.pub >> /Users/$nuser/.ssh/authorized_keys
-cat /Users/$iuser/.ssh/authorized_keys >> /Users/$nuser/.ssh/authorized_keys
+cat /Users/$iuser/.ssh/authorized_keys /Users/$nuser/.ssh/authorized_keys >>/Users/$nuser/.ssh/authorized_keys.2
+mv  /Users/$nuser/.ssh/authorized_keys.2 /Users/$nuser/.ssh/authorized_keys
 ln -s /Users/$iuser/.rvm /Users/$nuser/
 mkdir -p /Users/$nuser/Library/Preferences
 defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant DidSeeCloudSetup -bool TRUE
