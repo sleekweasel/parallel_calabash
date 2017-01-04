@@ -118,6 +118,7 @@ echo ==========================
         cat <<END | ssh ${iuserhost} sudo -S -s
 $PASSWORD
 dscl . create /Users/$nuser PrimaryGroupID $GID
+defaults write com.apple.CrashReporter UseUNC 1
 END
     else
         uid=$[ uid + 1 ]
@@ -166,6 +167,7 @@ rm -rf /Users/$nuser/ssh
 cp -r /etc/ssh /Users/$nuser/ssh
 sed -E -i~ 's/\/etc\//\/Users\/$nuser\//; s/#(ListenAddress|HostKey)/\1/; s/#Port 22/Port '$[ count + 2200 ]'/;' /Users/$nuser/ssh/sshd_config
 chown -R "${nuser}" "/Users/$nuser"
+defaults write com.apple.CrashReporter UseUNC 1
 END
     echo y | ssh ${iuserhost} ssh $nuser@localhost echo SUCCESS FOR \$\\\( id $nuser \\\)
 done
