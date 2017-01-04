@@ -3,7 +3,7 @@
 #  1. Copies autologin_test_users.app to /Applications
 #  2. Copies the config file to ~/.parallel_calabash.iphonesimulator and links to .autotest
 #  3. Creates an ssh key if it doesn't already exist
-#  4. Turns off localhost checking
+#  4. Sets limit.maxprocs (and limit.maxfiles) to 2500 (and 65536, though let's delete this for now)
 #  5. Creates or updates test users with .ssh/authorized_keys, iPhone simulator types, and ~/.rvm.
 #  6. Also stops iTunes first-time-login nonsense
 #
@@ -15,41 +15,64 @@
 # Test users and passwords are taken from the nominated parallel_calabash file.
 # 
 # Usage:  setup_ios_host user host config
+# Or   :  setup_ios_host config
 
 usage() {
-    echo Usage: ${0#*/} user host config
+    echo Usage: ${0#*/} [user host] config
     echo "   user: remote CI user, assumed to have .ssh established for passwordless login."
     echo "   host: remote hostname"
-    echo "   config: parallel_calabash config to install, notably USERS and PASSWORD"
+    echo "   config: parallel_calabash config to install, notably USERS and PASSWORD, and optionally SETUP_IOS_USER, SETUP_IOS_HOST"
+    echo $*
+    exit 1
 }
 
 USER=$1
 HOST=$2
 CONFIG=$3
 
-[ -n "$CONFIG" -a -f "$CONFIG" ] || { usage; echo No config file "'$CONFIG'"! ; exit 1 ; }
+if [ -n "$USER" -a -f "$USER" ] ; then
+    if [ -n "$HOST" -o -n "$CONFIG" ] ; then
+        usage $USER matched a file, but was not the only parameter
+    fi
+    CONFIG=$USER
+    USER=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:SETUP_IOS_USER]" )
+    HOST=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:SETUP_IOS_HOST]" )
+    echo Using SETUP_IOS_USER=$USER and SETUP_IOS_HOST=$HOST from $CONFIG
+fi
 
-ping -q -o "$HOST" || { usage; echo Unable to ping host "'$HOST'" ; exit 1 ; }
+[ -n "$CONFIG" -a -f "$CONFIG" ] || { usage No config file "'$CONFIG'"! ; }
+
+ping -q -o "$HOST" || { usage Unable to ping host "'$HOST'" ; }
 
 USERHOST="${USER}@${HOST}"
 
 PASSWORD=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:PASSWORD]" )
 USERS=$( ruby -e "config = eval File.read('$CONFIG'); puts config[:USERS]" | sort -u )
 
-# Copy application, config file, and authorise application to use UI Automation.
+echo Copy application, config file, and authorise application to use UI Automation.
+
 rsync -r --delete ${0%/*}/autostart_test_users.app ${USERHOST}:/Applications/
 rsync $CONFIG ${USERHOST}:.parallel_calabash.iphonesimulator
 ssh ${USERHOST} "ln -s .parallel_calabash.iphonesimulator .parallel_calabash.autostart"
-echo "${PASSWORD}" | ssh ${USERHOST} "sudo sqlite3 '/Library/Application Support/com.apple.TCC/TCC.db' 'INSERT or REPLACE INTO access VALUES(\"kTCCServiceAccessibility\",\"com.apple.ScriptEditor.id.autostart-test-users\",0,1,0,NULL)'"
+echo "${PASSWORD}" | ssh ${USERHOST} "sudo -S sqlite3 '/Library/Application Support/com.apple.TCC/TCC.db' 'INSERT or REPLACE INTO access VALUES(\"kTCCServiceAccessibility\",\"com.apple.ScriptEditor.id.autostart-test-users\",0,1,0,NULL)'"
 
-# Supposedly skip checking vs localhost with vnc addresses. Not sure if this is needed.
-echo "${PASSWORD}" | ssh ${USERHOST} "sudo defaults write com.apple.ScreenSharing skipLocalAddressCheck -boolean YES"
+echo Supposedly skip checking vs localhost with vnc addresses. Not sure if this is needed or functional.
 
-# Ensure there's an ssh key and don't fret about localhost authentication.
+echo "${PASSWORD}" | ssh ${USERHOST} "sudo -S defaults write com.apple.ScreenSharing skipLocalAddressCheck -boolean YES"
+
+echo "Bump maxproc to the highest possible; delete maxfiles if it's 65536 because that's not proven necessary."
+
+rsync -r ${0%/*}/limit.max*.plist ${USERHOST}:/tmp/
+echo "${PASSWORD}" | ssh ${USERHOST} "sudo -S cp /tmp/limit.maxproc.plist /Library/LaunchDaemons/limit.maxproc.plist"
+echo "${PASSWORD}" | ssh ${USERHOST} "sudo -S -s 'grep 65536 /Library/LaunchDaemons/limit.maxfile.plist && rm /Library/LaunchDaemons/limit.maxfile.plist'"
+
+echo "Ensure there's an ssh key and don't fret about localhost authentication."
+
 ssh ${USERHOST} "echo n | ssh-keygen -q -f .ssh/id_rsa -N ''"
 ssh ${USERHOST} "(echo 'Host *' ; echo '    StrictHostKeyChecking no'; echo 'UserKnownHostsFile /dev/null') >> .ssh/config"
 
-# Reboot the auto-login user if the default keychain is not 'login' - otherwise Screen Sharing will not work. Only needed for master machine.
+echo "Reboot the auto-login user if the default keychain is not 'login' - otherwise Screen Sharing will not work. Only needed for master machine."
+
 ssh ${USERHOST} "sed -E 's/MAIN_USER/$USER/' </Users/$USER/Autostart/autostart_test_users.reboot.plist >/Users/$USER/Library/LaunchAgents/autostart_test_users.reboot.plist"
 rsync ${0%/*}/autostart_test_users.reboot.* ${USERHOST}:Autostart/
 
@@ -85,10 +108,10 @@ echo ==========================
     os_version=$(ssh ${iuserhost} "sw_vers -productVersion")
     buddy_version=$(ssh ${iuserhost} "sw_vers -buildVersion")
     UIDS=$(ssh ${iuserhost} "dscl . -list /Users UniqueID")
-    [ -n "$UIDS" ] || { usage; echo "Unable to retrieve UIDs from: ssh $iuserhost \"dscl . -list /Users UniqueID\" ($UIDS)"; exit 1 ; }
+    [ -n "$UIDS" ] || { usage "Unable to retrieve UIDs from: ssh $iuserhost \"dscl . -list /Users UniqueID\" ($UIDS)" ; }
 
-    GID=$(ssh ${iuserhost} "dscl . -list /Users PrimaryGroupID | awk '/^$iuser .{ print \$2 }")
-    [ -n "$GID" ] || { usage; echo "Unable to retrieve GID from: ssh $iuserhost \"dscl . -list /Users PrimaryGroupID\" ($GID)"; exit 1 ; }
+    GID=$(ssh ${iuserhost} "dscl . -list /Users PrimaryGroupID | awk '/^$iuser /{ print \$2 }'")
+    [ -n "$GID" ] || { usage "Unable to retrieve GID from: ssh $iuserhost \"dscl . -list /Users PrimaryGroupID\" ($GID)" ; }
 
     if echo start $UIDS end | grep " $nuser "; then
         echo USER $nuser already exists: updating only.
@@ -144,6 +167,6 @@ cp -r /etc/ssh /Users/$nuser/ssh
 sed -E -i~ 's/\/etc\//\/Users\/$nuser\//; s/#(ListenAddress|HostKey)/\1/; s/#Port 22/Port '$[ count + 2200 ]'/;' /Users/$nuser/ssh/sshd_config
 chown -R "${nuser}" "/Users/$nuser"
 END
-    echo y | ssh ${iuserhost} ssh $nuser@localhost echo SUCCESS FOR $nuser
+    echo y | ssh ${iuserhost} ssh $nuser@localhost echo SUCCESS FOR \$\\\( id $nuser \\\)
 done
 
