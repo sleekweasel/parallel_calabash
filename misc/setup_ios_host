@@ -154,19 +154,30 @@ chmod 644 /Users/$nuser/.ssh/authorized_keys
 cat /Users/$iuser/.ssh/id_rsa.pub >> /Users/$nuser/.ssh/authorized_keys
 cat /Users/$iuser/.ssh/authorized_keys /Users/$nuser/.ssh/authorized_keys >>/Users/$nuser/.ssh/authorized_keys.2
 mv  /Users/$nuser/.ssh/authorized_keys.2 /Users/$nuser/.ssh/authorized_keys
+echo link rvm
 ln -s /Users/$iuser/.rvm /Users/$nuser/
 mkdir -p /Users/$nuser/Library/Preferences
+echo write defaults
 defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant DidSeeCloudSetup -bool TRUE
 defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant GestureMovieSeen none
 defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant LastSeenCloudProductVersion ${os_version}
 defaults write /Users/$nuser/Library/Preferences/com.apple.SetupAssistant LastSeenBuddyBuildVersion ${buddy_version}
+echo copy iphonesimulator plist
 cp /Users/$iuser/Library/Preferences/com.apple.iphonesimulator.plist /Users/$nuser/Library/Preferences/com.apple.iphonesimulator.plist 
 mkdir -p /Users/$nuser/Library/LaunchAgents
+echo sed sshdplist
 sed -E 's/TEST_USER/$nuser/; s/MAIN_USER/$iuser/' </Users/$iuser/Autostart/autostart_test_users.sshd.plist >/Users/$nuser/Library/LaunchAgents/autostart_test_users.sshd.plist
 rm -rf /Users/$nuser/ssh
-cp -r /etc/ssh /Users/$nuser/ssh
+echo rm $nuser/ssh
+cp -rv /etc/ssh /Users/$nuser/ssh
+ls -l /Users/$nuser/ssh/sshd_config
+echo sed sshdconfig
 sed -E -i~ 's/\/etc\//\/Users\/$nuser\//; s/#(ListenAddress|HostKey)/\1/; s/#Port 22/Port '$[ count + 2200 ]'/;' /Users/$nuser/ssh/sshd_config
-chown -R "${nuser}" "/Users/$nuser"
+echo DerivedData relative to project, please.
+write com.apple.dt.xcode IDECustomDerivedDataLocation DerivedData
+echo chown R "${nuser}" "/Users/$nuser" except DerivedData and CoreSimulator
+find /Users/$nuser -name DerivedData -prune -false -or -name CoreSimulator -prune -false -or -print0 | xargs -0 chown "${nuser}" 
+echo default write crashreporter
 defaults write com.apple.CrashReporter UseUNC 1
 END
     echo y | ssh ${iuserhost} ssh $nuser@localhost echo SUCCESS FOR \$\\\( id $nuser \\\)
